@@ -1,0 +1,55 @@
+name: Infrastructure Reconciliation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run (dev/prod/all)'
+        required: true
+        default: 'dev'
+
+jobs:
+  terragrunt:
+    name: Terragrunt Run
+    runs-on: ubuntu-latest
+    
+    # Use environments to manage secrets for dev/prod if needed
+    # strategy:
+    #   matrix:
+    #     environment: [dev, prod]
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # Secrets to be flowed to SSM Parameter Store
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_api_key: ${{ secrets.API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.0
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        uses: autero1/action-terragrunt@v3
+        with:
+          terragrunt_version: 0.67.0
+
+      - name: Terragrunt Plan/Apply
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            terragrunt run-all plan --terragrunt-non-interactive
+          else
+            # For this template, we show how to apply. 
+            # In real production, you might want manual approval.
+            terragrunt run-all apply --terragrunt-non-interactive
+          fi
